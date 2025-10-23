@@ -10,6 +10,10 @@ import type { Challenge, UserProgress } from "@shared/schema";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface DashboardData {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
   activeChallenges: number;
   completionRate: number;
   currentStreak: number;
@@ -25,7 +29,7 @@ export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
 
-  const { data: userData, isLoading } = useQuery({
+  const { data: userData, isLoading } = useQuery<DashboardData>({
     queryKey: ["/api/dashboard"],
   });
 
@@ -40,16 +44,27 @@ export default function Dashboard() {
     );
   }
 
-  const mockData = userData || {
-    activeChallenges: 0,
-    completionRate: 0,
-    currentStreak: 0,
-    totalPoints: 0,
-    totalXP: 0,
-    level: 1,
-    badges: [],
-    enrolledChallenges: [],
-    progressHistory: [],
+  // Use userData directly - no need for mockData since we have loading state
+  if (!userData) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center space-y-4">
+          <p className="text-muted-foreground">No data available</p>
+        </div>
+      </div>
+    );
+  }
+
+  const mockData = {
+    activeChallenges: userData.activeChallenges || 0,
+    completionRate: userData.completionRate || 0,
+    currentStreak: userData.currentStreak || 0,
+    totalPoints: userData.totalPoints || 0,
+    totalXP: userData.totalXP || 0,
+    level: userData.level || 1,
+    badges: userData.badges || [],
+    enrolledChallenges: userData.enrolledChallenges || [],
+    progressHistory: userData.progressHistory || [],
   };
 
   // Admin Dashboard

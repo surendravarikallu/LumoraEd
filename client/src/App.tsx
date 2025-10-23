@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import NotFound from "@/pages/not-found";
+import LandingPage from "@/pages/LandingPage";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Dashboard from "@/pages/Dashboard";
@@ -16,6 +17,8 @@ import Challenges from "@/pages/Challenges";
 import ChallengeDetail from "@/pages/ChallengeDetail";
 import TaskDetail from "@/pages/TaskDetail";
 import Certifications from "@/pages/Certifications";
+import Roadmaps from "@/pages/Roadmaps";
+import RoadmapDetail from "@/pages/RoadmapDetail";
 import Admin from "@/pages/Admin";
 
 function ProtectedRoute({ component: Component }: { component: () => JSX.Element }) {
@@ -61,11 +64,12 @@ function AuthenticatedLayout() {
               <Route path="/challenges" component={() => <ProtectedRoute component={Challenges} />} />
               <Route path="/challenges/:id" component={() => <ProtectedRoute component={ChallengeDetail} />} />
               <Route path="/tasks/:id" component={() => <ProtectedRoute component={TaskDetail} />} />
+              <Route path="/roadmaps" component={() => <ProtectedRoute component={Roadmaps} />} />
+              <Route path="/roadmaps/:id" component={() => <ProtectedRoute component={RoadmapDetail} />} />
               <Route path="/certifications" component={() => <ProtectedRoute component={Certifications} />} />
               {user?.role === "admin" && (
                 <Route path="/admin" component={() => <ProtectedRoute component={Admin} />} />
               )}
-              <Route path="/" component={() => <Redirect to="/dashboard" />} />
               <Route component={NotFound} />
             </Switch>
           </main>
@@ -89,13 +93,14 @@ function Router() {
     );
   }
 
-  return (
-    <Switch>
-      <Route path="/login">{user ? <Redirect to="/dashboard" /> : <Login />}</Route>
-      <Route path="/register">{user ? <Redirect to="/dashboard" /> : <Register />}</Route>
-      <Route>{user ? <AuthenticatedLayout /> : <Redirect to="/login" />}</Route>
-    </Switch>
-  );
+      return (
+        <Switch>
+          <Route path="/" component={LandingPage} />
+          <Route path="/login">{user ? <Redirect to="/dashboard" /> : <Login />}</Route>
+          <Route path="/register">{user ? <Redirect to="/dashboard" /> : <Register />}</Route>
+          <Route>{user ? <AuthenticatedLayout /> : <Redirect to="/login" />}</Route>
+        </Switch>
+      );
 }
 
 export default function App() {

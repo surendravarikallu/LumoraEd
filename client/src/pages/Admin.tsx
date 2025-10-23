@@ -7,8 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, BookOpen, Trophy } from "lucide-react";
-import type { Challenge, Certification, Task } from "@shared/schema";
+import { Plus, Trash2, BookOpen, Trophy, Map } from "lucide-react";
+import type { Challenge, Certification, Task, Roadmap } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -16,6 +16,7 @@ export default function Admin() {
   const { toast } = useToast();
   const [newChallenge, setNewChallenge] = useState({ title: "", description: "", duration: "" });
   const [newCert, setNewCert] = useState({ title: "", provider: "", link: "" });
+  const [newRoadmap, setNewRoadmap] = useState({ title: "", description: "", category: "" });
   const [selectedChallenge, setSelectedChallenge] = useState<string>("");
   const [newTask, setNewTask] = useState({
     dayNumber: "",
@@ -30,6 +31,10 @@ export default function Admin() {
 
   const { data: certifications } = useQuery<Certification[]>({
     queryKey: ["/api/admin/certifications"],
+  });
+
+  const { data: roadmaps } = useQuery<Roadmap[]>({
+    queryKey: ["/api/admin/roadmaps"],
   });
 
   const createChallengeMutation = useMutation({
@@ -74,6 +79,17 @@ export default function Admin() {
     },
   });
 
+  const createRoadmapMutation = useMutation({
+    mutationFn: (data: any) =>
+      apiRequest("POST", "/api/admin/roadmaps", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/roadmaps"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/roadmaps"] });
+      setNewRoadmap({ title: "", description: "", category: "" });
+      toast({ title: "Roadmap created successfully" });
+    },
+  });
+
   const handleCreateChallenge = (e: React.FormEvent) => {
     e.preventDefault();
     createChallengeMutation.mutate({
@@ -105,6 +121,11 @@ export default function Admin() {
     });
   };
 
+  const handleCreateRoadmap = (e: React.FormEvent) => {
+    e.preventDefault();
+    createRoadmapMutation.mutate(newRoadmap);
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -117,6 +138,7 @@ export default function Admin() {
       <Tabs defaultValue="challenges" className="space-y-6">
         <TabsList>
           <TabsTrigger value="challenges">Challenges</TabsTrigger>
+          <TabsTrigger value="roadmaps">Roadmaps</TabsTrigger>
           <TabsTrigger value="certifications">Certifications</TabsTrigger>
         </TabsList>
 
@@ -269,6 +291,83 @@ export default function Admin() {
                           <p className="text-sm text-muted-foreground">
                             {challenge.duration} days
                           </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="roadmaps" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Create New Roadmap</CardTitle>
+              <CardDescription>Add a new learning roadmap for students</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreateRoadmap} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="roadmapTitle">Roadmap Title</Label>
+                  <Input
+                    id="roadmapTitle"
+                    placeholder="e.g., Python Developer Roadmap"
+                    value={newRoadmap.title}
+                    onChange={(e) => setNewRoadmap({ ...newRoadmap, title: e.target.value })}
+                    required
+                    data-testid="input-roadmap-title"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="roadmapDescription">Description</Label>
+                  <Textarea
+                    id="roadmapDescription"
+                    placeholder="Describe the roadmap and learning path..."
+                    value={newRoadmap.description}
+                    onChange={(e) => setNewRoadmap({ ...newRoadmap, description: e.target.value })}
+                    required
+                    data-testid="input-roadmap-description"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="roadmapCategory">Category</Label>
+                  <Input
+                    id="roadmapCategory"
+                    placeholder="e.g., Programming, Data Science, Web Development"
+                    value={newRoadmap.category}
+                    onChange={(e) => setNewRoadmap({ ...newRoadmap, category: e.target.value })}
+                    required
+                    data-testid="input-roadmap-category"
+                  />
+                </div>
+                <Button type="submit" disabled={createRoadmapMutation.isPending} data-testid="button-create-roadmap">
+                  <Plus className="h-4 w-4 mr-2" />
+                  {createRoadmapMutation.isPending ? "Creating..." : "Create Roadmap"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          {roadmaps && roadmaps.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Existing Roadmaps</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {roadmaps.map((roadmap) => (
+                    <div
+                      key={roadmap.id}
+                      className="flex items-center justify-between p-4 border rounded-lg"
+                      data-testid={`admin-roadmap-${roadmap.id}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Map className="h-5 w-5 text-primary" />
+                        <div>
+                          <p className="font-semibold">{roadmap.title}</p>
+                          <p className="text-sm text-muted-foreground">{roadmap.category}</p>
                         </div>
                       </div>
                     </div>

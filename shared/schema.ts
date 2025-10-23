@@ -75,6 +75,71 @@ export const certifications = pgTable("certifications", {
   dateAdded: timestamp("date_added").defaultNow().notNull(),
 });
 
+// Roadmaps table - learning roadmaps
+export const roadmaps = pgTable("roadmaps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  category: text("category").notNull(),
+  difficulty: text("difficulty").notNull(),
+  estimatedDuration: integer("estimated_duration").notNull(), // in weeks
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Roadmap steps table - individual steps in a roadmap
+export const roadmapSteps = pgTable("roadmap_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  roadmapId: varchar("roadmap_id").notNull().references(() => roadmaps.id, { onDelete: "cascade" }),
+  stepNumber: integer("step_number").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  resourceLinks: jsonb("resource_links").$type<Array<{ type: string; url: string; title: string }>>(),
+  isOptional: boolean("is_optional").notNull().default(false),
+  xpReward: integer("xp_reward").default(10),
+});
+
+// User XP and Achievements
+export const userXP = pgTable("user_xp", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  totalXP: integer("total_xp").default(0).notNull(),
+  level: integer("level").default(1).notNull(),
+  streakCount: integer("streak_count").default(0).notNull(),
+  lastActivityDate: timestamp("last_activity_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const badges = pgTable("badges", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  icon: text("icon").notNull(),
+  color: text("color").notNull(),
+  xpRequired: integer("xp_required").default(0),
+  category: text("category").notNull(),
+  isRare: boolean("is_rare").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const userBadges = pgTable("user_badges", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  badgeId: varchar("badge_id").notNull().references(() => badges.id, { onDelete: "cascade" }),
+  earnedAt: timestamp("earned_at").defaultNow().notNull(),
+});
+
+export const xpTransactions = pgTable("xp_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  amount: integer("amount").notNull(),
+  source: text("source").notNull(), // 'task_completion', 'quiz_perfect', 'streak', 'challenge_completion'
+  sourceId: text("source_id"), // ID of the task, quiz, challenge, etc.
+  description: text("description").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   challenges: many(challenges),
@@ -129,6 +194,46 @@ export const userProgressRelations = relations(userProgress, ({ one }) => ({
   }),
 }));
 
+export const roadmapsRelations = relations(roadmaps, ({ one, many }) => ({
+  creator: one(users, {
+    fields: [roadmaps.createdBy],
+    references: [users.id],
+  }),
+  steps: many(roadmapSteps),
+}));
+
+export const roadmapStepsRelations = relations(roadmapSteps, ({ one }) => ({
+  roadmap: one(roadmaps, {
+    fields: [roadmapSteps.roadmapId],
+    references: [roadmaps.id],
+  }),
+}));
+
+export const userXPRelations = relations(userXP, ({ one }) => ({
+  user: one(users, {
+    fields: [userXP.userId],
+    references: [users.id],
+  }),
+}));
+
+export const userBadgesRelations = relations(userBadges, ({ one }) => ({
+  user: one(users, {
+    fields: [userBadges.userId],
+    references: [users.id],
+  }),
+  badge: one(badges, {
+    fields: [userBadges.badgeId],
+    references: [badges.id],
+  }),
+}));
+
+export const xpTransactionsRelations = relations(xpTransactions, ({ one }) => ({
+  user: one(users, {
+    fields: [xpTransactions.userId],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -163,6 +268,36 @@ export const insertCertificationSchema = createInsertSchema(certifications).omit
   dateAdded: true,
 });
 
+export const insertRoadmapSchema = createInsertSchema(roadmaps).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertRoadmapStepSchema = createInsertSchema(roadmapSteps).omit({
+  id: true,
+});
+
+export const insertUserXPSchema = createInsertSchema(userXP).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertBadgeSchema = createInsertSchema(badges).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertUserBadgeSchema = createInsertSchema(userBadges).omit({
+  id: true,
+  earnedAt: true,
+});
+
+export const insertXPTransactionSchema = createInsertSchema(xpTransactions).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -184,3 +319,21 @@ export type InsertUserProgress = z.infer<typeof insertUserProgressSchema>;
 
 export type Certification = typeof certifications.$inferSelect;
 export type InsertCertification = z.infer<typeof insertCertificationSchema>;
+
+export type Roadmap = typeof roadmaps.$inferSelect;
+export type InsertRoadmap = z.infer<typeof insertRoadmapSchema>;
+
+export type RoadmapStep = typeof roadmapSteps.$inferSelect;
+export type InsertRoadmapStep = z.infer<typeof insertRoadmapStepSchema>;
+
+export type UserXP = typeof userXP.$inferSelect;
+export type InsertUserXP = z.infer<typeof insertUserXPSchema>;
+
+export type Badge = typeof badges.$inferSelect;
+export type InsertBadge = z.infer<typeof insertBadgeSchema>;
+
+export type UserBadge = typeof userBadges.$inferSelect;
+export type InsertUserBadge = z.infer<typeof insertUserBadgeSchema>;
+
+export type XPTransaction = typeof xpTransactions.$inferSelect;
+export type InsertXPTransaction = z.infer<typeof insertXPTransactionSchema>;

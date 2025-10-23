@@ -6,6 +6,8 @@ import {
   submissions,
   userProgress,
   certifications,
+  roadmaps,
+  roadmapSteps,
   type User,
   type InsertUser,
   type Challenge,
@@ -20,6 +22,10 @@ import {
   type InsertUserProgress,
   type Certification,
   type InsertCertification,
+  type Roadmap,
+  type InsertRoadmap,
+  type RoadmapStep,
+  type InsertRoadmapStep,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, count } from "drizzle-orm";
@@ -29,7 +35,9 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByFirebaseUid(firebaseUid: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, data: Partial<User>): Promise<User>;
 
   // Challenges
   getAllChallenges(userId?: string): Promise<Challenge[]>;
@@ -62,6 +70,20 @@ export interface IStorage {
   getAllCertifications(): Promise<Certification[]>;
   createCertification(cert: InsertCertification): Promise<Certification>;
   deleteCertification(id: string): Promise<void>;
+
+  // Roadmaps
+  getAllRoadmaps(): Promise<Roadmap[]>;
+  getRoadmap(id: string): Promise<Roadmap | undefined>;
+  createRoadmap(roadmap: InsertRoadmap): Promise<Roadmap>;
+  updateRoadmap(id: string, data: Partial<Roadmap>): Promise<Roadmap>;
+  deleteRoadmap(id: string): Promise<void>;
+
+  // Roadmap Steps
+  getStepsByRoadmap(roadmapId: string): Promise<RoadmapStep[]>;
+  getRoadmapStep(id: string): Promise<RoadmapStep | undefined>;
+  createRoadmapStep(step: InsertRoadmapStep): Promise<RoadmapStep>;
+  updateRoadmapStep(id: string, data: Partial<RoadmapStep>): Promise<RoadmapStep>;
+  deleteRoadmapStep(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -81,8 +103,17 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+
+  async updateUser(id: string, data: Partial<User>): Promise<User> {
+    const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
     return user;
   }
 
@@ -120,7 +151,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTask(task: InsertTask): Promise<Task> {
-    const [newTask] = await db.insert(tasks).values(task).returning();
+    const [newTask] = await db.insert(tasks).values(task as any).returning();
     return newTask;
   }
 
@@ -131,7 +162,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createQuiz(quiz: InsertQuiz): Promise<Quiz> {
-    const [newQuiz] = await db.insert(quizzes).values(quiz).returning();
+    const [newQuiz] = await db.insert(quizzes).values(quiz as any).returning();
     return newQuiz;
   }
 
@@ -213,6 +244,54 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCertification(id: string): Promise<void> {
     await db.delete(certifications).where(eq(certifications.id, id));
+  }
+
+  // Roadmaps
+  async getAllRoadmaps(): Promise<Roadmap[]> {
+    return await db.select().from(roadmaps).orderBy(desc(roadmaps.createdAt));
+  }
+
+  async getRoadmap(id: string): Promise<Roadmap | undefined> {
+    const [roadmap] = await db.select().from(roadmaps).where(eq(roadmaps.id, id));
+    return roadmap || undefined;
+  }
+
+  async createRoadmap(roadmap: InsertRoadmap): Promise<Roadmap> {
+    const [newRoadmap] = await db.insert(roadmaps).values(roadmap).returning();
+    return newRoadmap;
+  }
+
+  async updateRoadmap(id: string, data: Partial<Roadmap>): Promise<Roadmap> {
+    const [updated] = await db.update(roadmaps).set(data).where(eq(roadmaps.id, id)).returning();
+    return updated;
+  }
+
+  async deleteRoadmap(id: string): Promise<void> {
+    await db.delete(roadmaps).where(eq(roadmaps.id, id));
+  }
+
+  // Roadmap Steps
+  async getStepsByRoadmap(roadmapId: string): Promise<RoadmapStep[]> {
+    return await db.select().from(roadmapSteps).where(eq(roadmapSteps.roadmapId, roadmapId)).orderBy(roadmapSteps.stepNumber);
+  }
+
+  async getRoadmapStep(id: string): Promise<RoadmapStep | undefined> {
+    const [step] = await db.select().from(roadmapSteps).where(eq(roadmapSteps.id, id));
+    return step || undefined;
+  }
+
+  async createRoadmapStep(step: InsertRoadmapStep): Promise<RoadmapStep> {
+    const [newStep] = await db.insert(roadmapSteps).values(step as any).returning();
+    return newStep;
+  }
+
+  async updateRoadmapStep(id: string, data: Partial<RoadmapStep>): Promise<RoadmapStep> {
+    const [updated] = await db.update(roadmapSteps).set(data).where(eq(roadmapSteps.id, id)).returning();
+    return updated;
+  }
+
+  async deleteRoadmapStep(id: string): Promise<void> {
+    await db.delete(roadmapSteps).where(eq(roadmapSteps.id, id));
   }
 }
 

@@ -27,6 +27,9 @@ export default function TaskDetail() {
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([]);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [score, setScore] = useState(0);
+  const [resourcesViewed, setResourcesViewed] = useState<Set<number>>(new Set());
+  const [learningTime, setLearningTime] = useState(0);
+  const [startTime] = useState(Date.now());
 
   const { data, isLoading } = useQuery<TaskDetailData>({
     queryKey: ["/api/tasks", taskId],
@@ -34,8 +37,14 @@ export default function TaskDetail() {
   });
 
   const completeTaskMutation = useMutation({
-    mutationFn: () =>
-      apiRequest("POST", `/api/tasks/${taskId}/complete`, {}),
+    mutationFn: () => {
+      const learningTime = Math.floor((Date.now() - startTime) / 1000);
+      return apiRequest("POST", `/api/tasks/${taskId}/complete`, {
+        learningTime,
+        resourcesViewed: Array.from(resourcesViewed),
+        quizScore: quizCompleted ? score : null,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks", taskId] });
       queryClient.invalidateQueries({ queryKey: ["/api/challenges"] });
@@ -65,6 +74,26 @@ export default function TaskDetail() {
     const newAnswers = [...selectedAnswers];
     newAnswers[currentQuestion] = answerIndex;
     setSelectedAnswers(newAnswers);
+  };
+
+  const handleResourceClick = (index: number) => {
+    setResourcesViewed(prev => new Set([...prev, index]));
+  };
+
+  const canCompleteTask = () => {
+    if (!data?.task) return false;
+    
+    // Must have viewed at least 50% of resources or spent minimum learning time
+    const minResources = Math.ceil((data.task.resourceLinks?.length || 0) * 0.5);
+    const minLearningTime = 30; // 30 seconds minimum
+    
+    const hasViewedEnoughResources = resourcesViewed.size >= minResources;
+    const hasSpentEnoughTime = Math.floor((Date.now() - startTime) / 1000) >= minLearningTime;
+    
+    // If there's a quiz, it must be completed
+    if (data.quiz && !quizCompleted) return false;
+    
+    return hasViewedEnoughResources || hasSpentEnoughTime;
   };
 
   const handleNextQuestion = () => {
@@ -155,7 +184,12 @@ export default function TaskDetail() {
                       href={resource.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-3 p-3 border rounded-lg hover-elevate"
+                      onClick={() => handleResourceClick(index)}
+                      className={`flex items-center gap-3 p-3 border rounded-lg hover-elevate transition-all ${
+                        resourcesViewed.has(index) 
+                          ? 'border-green-500 bg-green-50 dark:bg-green-900/20' 
+                          : 'border-border'
+                      }`}
                       data-testid={`resource-${index}`}
                     >
                       <Icon className="h-5 w-5 text-primary" />
@@ -163,7 +197,12 @@ export default function TaskDetail() {
                         <p className="font-medium">{resource.title}</p>
                         <p className="text-sm text-muted-foreground">{resource.type}</p>
                       </div>
-                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                      <div className="flex items-center gap-2">
+                        {resourcesViewed.has(index) && (
+                          <span className="text-xs text-green-600 font-medium">✓ Viewed</span>
+                        )}
+                        <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                      </div>
                     </a>
                   );
                 })}
@@ -208,13 +247,27 @@ export default function TaskDetail() {
                     : "Keep practicing to improve your score."}
                 </p>
                 {!isCompleted && (
-                  <Button
-                    onClick={() => completeTaskMutation.mutate()}
-                    disabled={completeTaskMutation.isPending}
-                    data-testid="button-complete-task"
-                  >
-                    {completeTaskMutation.isPending ? "Completing..." : "Mark as Complete"}
-                  </Button>
+                  <div className="space-y-4">
+                    {!canCompleteTask() && (
+                      <div className="text-sm text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg">
+                        <p className="font-medium">Complete the learning requirements:</p>
+                        <ul className="mt-1 space-y-1">
+                          {data?.task.resourceLinks && data.task.resourceLinks.length > 0 && (
+                            <li>• View at least {Math.ceil(data.task.resourceLinks.length * 0.5)} resources</li>
+                          )}
+                          <li>• Spend at least 30 seconds learning</li>
+                          {data?.quiz && <li>• Complete the quiz</li>}
+                        </ul>
+                      </div>
+                    )}
+                    <Button
+                      onClick={() => completeTaskMutation.mutate()}
+                      disabled={completeTaskMutation.isPending || !canCompleteTask()}
+                      data-testid="button-complete-task"
+                    >
+                      {completeTaskMutation.isPending ? "Completing..." : "Mark as Complete"}
+                    </Button>
+                  </div>
                 )}
               </div>
             ) : (
@@ -288,15 +341,28 @@ export default function TaskDetail() {
       )}
 
       {!quiz && !isCompleted && (
-        <div className="flex justify-center">
-          <Button
-            onClick={() => completeTaskMutation.mutate()}
-            disabled={completeTaskMutation.isPending}
-            size="lg"
-            data-testid="button-complete-task-no-quiz"
-          >
-            {completeTaskMutation.isPending ? "Completing..." : "Mark as Complete"}
-          </Button>
+        <div className="space-y-4">
+          {!canCompleteTask() && (
+            <div className="text-sm text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg">
+              <p className="font-medium">Complete the learning requirements:</p>
+              <ul className="mt-1 space-y-1">
+                {data?.task.resourceLinks && data.task.resourceLinks.length > 0 && (
+                  <li>• View at least {Math.ceil(data.task.resourceLinks.length * 0.5)} resources</li>
+                )}
+                <li>• Spend at least 30 seconds learning</li>
+              </ul>
+            </div>
+          )}
+          <div className="flex justify-center">
+            <Button
+              onClick={() => completeTaskMutation.mutate()}
+              disabled={completeTaskMutation.isPending || !canCompleteTask()}
+              size="lg"
+              data-testid="button-complete-task-no-quiz"
+            >
+              {completeTaskMutation.isPending ? "Completing..." : "Mark as Complete"}
+            </Button>
+          </div>
         </div>
       )}
     </div>

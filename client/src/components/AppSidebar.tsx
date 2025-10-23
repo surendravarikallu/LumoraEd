@@ -1,4 +1,4 @@
-import { Home, BookOpen, Trophy, Bell, Settings, Shield } from "lucide-react";
+import { Home, BookOpen, Trophy, Bell, Settings, Shield, Map } from "lucide-react";
 import { useLocation } from "wouter";
 import {
   Sidebar,
@@ -27,6 +27,11 @@ const menuItems = [
     icon: BookOpen,
   },
   {
+    title: "Roadmaps",
+    url: "/roadmaps",
+    icon: Map,
+  },
+  {
     title: "Certifications",
     url: "/certifications",
     icon: Trophy,
@@ -42,8 +47,12 @@ const adminItems = [
 ];
 
 export function AppSidebar() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const { user, signOut } = useAuth();
+
+  const handleNavigation = (url: string) => {
+    setLocation(url);
+  };
 
   return (
     <Sidebar>
@@ -57,14 +66,12 @@ export function AppSidebar() {
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
-                    asChild
+                    onClick={() => handleNavigation(item.url)}
                     isActive={location === item.url}
                     data-testid={`link-${item.title.toLowerCase()}`}
                   >
-                    <a href={item.url}>
-                      <item.icon className="h-5 w-5" />
-                      <span>{item.title}</span>
-                    </a>
+                    <item.icon className="h-5 w-5" />
+                    <span>{item.title}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -80,14 +87,12 @@ export function AppSidebar() {
                 {adminItems.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
-                      asChild
+                      onClick={() => handleNavigation(item.url)}
                       isActive={location === item.url}
                       data-testid={`link-${item.title.toLowerCase().replace(" ", "-")}`}
                     >
-                      <a href={item.url}>
-                        <item.icon className="h-5 w-5" />
-                        <span>{item.title}</span>
-                      </a>
+                      <item.icon className="h-5 w-5" />
+                      <span>{item.title}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}

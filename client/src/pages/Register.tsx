@@ -23,8 +23,10 @@ export default function Register() {
       setLocation("/dashboard");
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.message || "Failed to sign up with Google",
+        title: "Authentication Error",
+        description: error.message.includes("not configured")
+          ? "Firebase authentication is not configured. Please contact the administrator to set up authentication."
+          : error.message || "Failed to sign up with Google",
         variant: "destructive",
       });
     } finally {
@@ -40,8 +42,10 @@ export default function Register() {
       setLocation("/dashboard");
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.message || "Failed to create account",
+        title: "Authentication Error",
+        description: error.message.includes("not configured")
+          ? "Firebase authentication is not configured. Please contact the administrator to set up authentication."
+          : error.message || "Failed to create account",
         variant: "destructive",
       });
     } finally {
@@ -148,8 +152,8 @@ export default function Register() {
           <p className="text-sm text-muted-foreground">
             Already have an account?{" "}
             <Button
-              variant="link"
-              className="p-0 h-auto font-semibold"
+              variant="ghost"
+              className="p-0 h-auto font-semibold text-primary hover:text-primary"
               onClick={() => setLocation("/login")}
               data-testid="link-login"
             >

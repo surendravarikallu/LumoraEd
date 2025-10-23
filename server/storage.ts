@@ -8,6 +8,10 @@ import {
   certifications,
   roadmaps,
   roadmapSteps,
+  userXP,
+  badges,
+  userBadges,
+  xpTransactions,
   type User,
   type InsertUser,
   type Challenge,
@@ -26,6 +30,14 @@ import {
   type InsertRoadmap,
   type RoadmapStep,
   type InsertRoadmapStep,
+  type UserXP,
+  type InsertUserXP,
+  type Badge,
+  type InsertBadge,
+  type UserBadge,
+  type InsertUserBadge,
+  type XPTransaction,
+  type InsertXPTransaction,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, count } from "drizzle-orm";
@@ -84,6 +96,22 @@ export interface IStorage {
   createRoadmapStep(step: InsertRoadmapStep): Promise<RoadmapStep>;
   updateRoadmapStep(id: string, data: Partial<RoadmapStep>): Promise<RoadmapStep>;
   deleteRoadmapStep(id: string): Promise<void>;
+
+  // XP System
+  getUserXP(userId: string): Promise<UserXP | undefined>;
+  createUserXP(userXP: InsertUserXP): Promise<UserXP>;
+  updateUserXP(userId: string, data: Partial<UserXP>): Promise<UserXP>;
+  addXP(userId: string, amount: number, source: string, sourceId: string | null, description: string): Promise<UserXP>;
+  
+  // Badges
+  getAllBadges(): Promise<Badge[]>;
+  createBadge(badge: InsertBadge): Promise<Badge>;
+  getUserBadges(userId: string): Promise<Array<Badge & { earnedAt: Date }>>;
+  awardBadge(userId: string, badgeId: string): Promise<UserBadge>;
+  
+  // XP Transactions
+  getUserXPTransactions(userId: string): Promise<XPTransaction[]>;
+  createXPTransaction(transaction: InsertXPTransaction): Promise<XPTransaction>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -292,6 +320,138 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRoadmapStep(id: string): Promise<void> {
     await db.delete(roadmapSteps).where(eq(roadmapSteps.id, id));
+  }
+
+  // XP System
+  async getUserXP(userId: string): Promise<UserXP | undefined> {
+    const [xp] = await db.select().from(userXP).where(eq(userXP.userId, userId));
+    return xp || undefined;
+  }
+
+  async createUserXP(insertUserXP: InsertUserXP): Promise<UserXP> {
+    const [newUserXP] = await db.insert(userXP).values(insertUserXP).returning();
+    return newUserXP;
+  }
+
+  async updateUserXP(userId: string, data: Partial<UserXP>): Promise<UserXP> {
+    const [updated] = await db
+      .update(userXP)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(userXP.userId, userId))
+      .returning();
+    return updated;
+  }
+
+  async addXP(userId: string, amount: number, source: string, sourceId: string | null, description: string): Promise<UserXP> {
+    // Get or create user XP record
+    let xpRecord = await this.getUserXP(userId);
+    
+    if (!xpRecord) {
+      xpRecord = await this.createUserXP({
+        userId,
+        totalXP: 0,
+        level: 1,
+        streakCount: 0,
+        lastActivityDate: null,
+      });
+    }
+
+    // Calculate new XP and level
+    const newTotalXP = xpRecord.totalXP + amount;
+    const newLevel = Math.floor(newTotalXP / 100) + 1; // 100 XP per level
+
+    // Update user XP
+    const updated = await this.updateUserXP(userId, {
+      totalXP: newTotalXP,
+      level: newLevel,
+      lastActivityDate: new Date(),
+    });
+
+    // Create XP transaction
+    await this.createXPTransaction({
+      userId,
+      amount,
+      source,
+      sourceId: sourceId || null,
+      description,
+    });
+
+    // Check for badge awards
+    const allBadges = await this.getAllBadges();
+    const userBadges = await this.getUserBadges(userId);
+    const userBadgeIds = new Set(userBadges.map(b => b.id));
+
+    for (const badge of allBadges) {
+      if (!userBadgeIds.has(badge.id) && badge.xpRequired && newTotalXP >= badge.xpRequired) {
+        await this.awardBadge(userId, badge.id);
+      }
+    }
+
+    return updated;
+  }
+
+  // Badges
+  async getAllBadges(): Promise<Badge[]> {
+    return await db.select().from(badges).orderBy(desc(badges.createdAt));
+  }
+
+  async createBadge(badge: InsertBadge): Promise<Badge> {
+    const [newBadge] = await db.insert(badges).values(badge).returning();
+    return newBadge;
+  }
+
+  async getUserBadges(userId: string): Promise<Array<Badge & { earnedAt: Date }>> {
+    const results = await db
+      .select({
+        id: badges.id,
+        name: badges.name,
+        description: badges.description,
+        icon: badges.icon,
+        color: badges.color,
+        xpRequired: badges.xpRequired,
+        category: badges.category,
+        isRare: badges.isRare,
+        createdAt: badges.createdAt,
+        earnedAt: userBadges.earnedAt,
+      })
+      .from(userBadges)
+      .innerJoin(badges, eq(userBadges.badgeId, badges.id))
+      .where(eq(userBadges.userId, userId))
+      .orderBy(desc(userBadges.earnedAt));
+    
+    return results as Array<Badge & { earnedAt: Date }>;
+  }
+
+  async awardBadge(userId: string, badgeId: string): Promise<UserBadge> {
+    // Check if user already has this badge
+    const existing = await db
+      .select()
+      .from(userBadges)
+      .where(and(eq(userBadges.userId, userId), eq(userBadges.badgeId, badgeId)));
+    
+    if (existing.length > 0) {
+      return existing[0];
+    }
+
+    const [newUserBadge] = await db
+      .insert(userBadges)
+      .values({ userId, badgeId })
+      .returning();
+    return newUserBadge;
+  }
+
+  // XP Transactions
+  async getUserXPTransactions(userId: string): Promise<XPTransaction[]> {
+    return await db
+      .select()
+      .from(xpTransactions)
+      .where(eq(xpTransactions.userId, userId))
+      .orderBy(desc(xpTransactions.createdAt));
+  }
+
+  async createXPTransaction(transaction: InsertXPTransaction): Promise<XPTransaction> {
+    const [newTransaction] = await db.insert(xpTransactions).values(transaction).returning();
+    return newTransaction;
   }
 }
 

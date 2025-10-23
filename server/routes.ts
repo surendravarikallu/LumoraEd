@@ -251,9 +251,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Return user information for role-based dashboard rendering
       console.log(`Dashboard API - User: ${user.email}, Role: ${user.role}`);
       
+      // Get XP data
+      const xpData = await storage.getUserXP(userId);
+      const totalXP = xpData?.totalXP || 0;
+      const level = xpData?.level || 1;
+      
+      // Get user badges
+      const userBadges = await storage.getUserBadges(userId);
+      
+      // Get user progress and enrolled challenges
+      const userProgressList = await storage.getUserProgress(userId);
+      const allChallenges = await storage.getAllChallenges();
+      
+      const enrolledChallenges = allChallenges
+        .filter(challenge => userProgressList.some(p => p.challengeId === challenge.id))
+        .map(challenge => {
+          const progress = userProgressList.find(p => p.challengeId === challenge.id);
+          return {
+            ...challenge,
+            progress,
+          };
+        });
+
+      // Calculate active challenges (challenges with progress < 100%)
+      const activeChallenges = enrolledChallenges.filter(
+        c => c.progress && c.progress.completedDays < c.duration
+      ).length;
+
+      // Calculate current streak (max streak from user progress)
+      const maxStreak = userProgressList.reduce((max, p) => Math.max(max, p.streakCount), 0);
+
+      // Get XP transactions for progress history (last 30 days)
+      const transactions = await storage.getUserXPTransactions(userId);
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      // Group transactions by date for progress history
+      const progressByDate = new Map<string, number>();
+      transactions
+        .filter(t => new Date(t.createdAt) >= thirtyDaysAgo)
+        .forEach(t => {
+          const date = new Date(t.createdAt).toISOString().split('T')[0];
+          const current = progressByDate.get(date) || 0;
+          progressByDate.set(date, current + t.amount);
+        });
+
+      const progressHistory = Array.from(progressByDate.entries())
+        .map(([date, xp]) => ({
+          date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          completion: xp,
+        }))
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        .slice(-7); // Last 7 days
+
+      // Calculate completion rate
+      let completionRate = 0;
+      if (enrolledChallenges.length > 0) {
+        const totalProgress = enrolledChallenges.reduce(
+          (sum, c) => sum + (c.progress?.completedDays || 0),
+          0
+        );
+        const totalDays = enrolledChallenges.reduce((sum, c) => sum + c.duration, 0);
+        completionRate = totalDays > 0 ? Math.round((totalProgress / totalDays) * 100) : 0;
+      }
+
       res.json({
         id: user.id,
         email: user.email,
@@ -261,6 +324,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: user.role,
         firebaseUid: user.firebaseUid,
         createdAt: user.createdAt,
+        totalXP,
+        level,
+        activeChallenges,
+        currentStreak: maxStreak,
+        completionRate,
+        badges: userBadges.map(badge => ({
+          id: badge.id,
+          name: badge.name,
+          icon: badge.icon,
+          color: badge.color,
+          earnedAt: badge.earnedAt,
+        })),
+        enrolledChallenges,
+        progressHistory,
       });
     } catch (error: any) {
       console.error("Dashboard error:", error);
@@ -377,6 +454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.userId!;
       const { id } = req.params;
+      const { learningTime, resourcesViewed, quizScore } = req.body;
 
       const task = await storage.getTask(id);
       if (!task) {
@@ -389,32 +467,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(submission);
       }
 
+      // Validate requirements
+      const quiz = await storage.getQuizByTask(id);
+      const resourceCount = task.resourceLinks?.length || 0;
+      const minResourcesViewed = Math.ceil(resourceCount * 0.5);
+      const minLearningTime = 30; // 30 seconds minimum
+
+      // Check if requirements are met
+      const hasViewedEnoughResources = !resourceCount || (resourcesViewed && resourcesViewed.length >= minResourcesViewed);
+      const hasSpentEnoughTime = !learningTime || learningTime >= minLearningTime;
+      const hasCompletedQuiz = !quiz || (quizScore !== null && quizScore !== undefined);
+
+      if (!hasViewedEnoughResources || !hasSpentEnoughTime || !hasCompletedQuiz) {
+        return res.status(400).json({ 
+          error: "Task requirements not met",
+          details: {
+            needMoreResources: !hasViewedEnoughResources,
+            needMoreTime: !hasSpentEnoughTime,
+            needQuizCompletion: !hasCompletedQuiz,
+          }
+        });
+      }
+
+      // Create or update submission
       if (!submission) {
         submission = await storage.createSubmission({
           userId,
           taskId: id,
           status: "completed",
-          score: null,
+          score: quizScore || null,
         });
       } else {
-        submission = await storage.updateSubmissionStatus(submission.id, "completed");
+        submission = await storage.updateSubmissionStatus(submission.id, "completed", quizScore || undefined);
       }
+
+      // Calculate XP to award
+      let xpAmount = 50; // Base XP for completing a task
+      let xpDescription = `Completed task: ${task.title}`;
+
+      // Bonus XP for perfect quiz score
+      if (quiz && quizScore === quiz.questions.length) {
+        xpAmount += 25;
+        xpDescription += " (Perfect quiz score!)";
+      }
+
+      // Award XP
+      await storage.addXP(userId, xpAmount, "task_completion", id, xpDescription);
 
       // Update progress
       const progress = await storage.getProgress(userId, task.challengeId);
-      if (progress && task.dayNumber > progress.completedDays) {
+      if (progress) {
+        let newStreakCount = 1;
         const now = new Date();
         const lastActivity = progress.lastActivityDate ? new Date(progress.lastActivityDate) : null;
-        const isConsecutive =
-          lastActivity &&
-          now.getTime() - lastActivity.getTime() < 48 * 60 * 60 * 1000 &&
-          now.getDate() !== lastActivity.getDate();
+        
+        // Check if this continues a streak
+        if (lastActivity) {
+          const hoursSinceLastActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60);
+          const isConsecutive = hoursSinceLastActivity < 48 && now.getDate() !== lastActivity.getDate();
+          if (isConsecutive) {
+            newStreakCount = progress.streakCount + 1;
+            // Award bonus XP for streaks
+            if (newStreakCount % 7 === 0) {
+              await storage.addXP(userId, 100, "streak", task.challengeId, `${newStreakCount} day streak!`);
+            } else if (newStreakCount > 1) {
+              await storage.addXP(userId, 10, "streak", task.challengeId, `${newStreakCount} day streak`);
+            }
+          }
+        }
 
-        await storage.updateProgress(progress.id, {
-          completedDays: task.dayNumber,
-          streakCount: isConsecutive ? progress.streakCount + 1 : 1,
-          lastActivityDate: now,
-        });
+        // Only update if this task advances progress
+        if (task.dayNumber > progress.completedDays) {
+          await storage.updateProgress(progress.id, {
+            completedDays: task.dayNumber,
+            streakCount: newStreakCount,
+            lastActivityDate: now,
+          });
+        }
+
+        // Check if challenge is completed
+        const challenge = await storage.getChallenge(task.challengeId);
+        if (challenge && task.dayNumber === challenge.duration) {
+          await storage.addXP(userId, 200, "challenge_completion", challenge.id, `Completed challenge: ${challenge.title}`);
+        }
       }
 
       res.json(submission);

@@ -11,6 +11,12 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   role: text("role").notNull().default("student"),
   firebaseUid: text("firebase_uid").unique(),
+  // Student profile fields
+  rollNumber: text("roll_number"),
+  branch: text("branch"),
+  year: text("year"),
+  collegeName: text("college_name"),
+  profileComplete: boolean("profile_complete").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -140,11 +146,30 @@ export const xpTransactions = pgTable("xp_transactions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Student requests table - for requesting new content
+export const studentRequests = pgTable("student_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // 'roadmap', 'challenge', 'certification', 'suggestion'
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  category: text("category"),
+  priority: text("priority").default("medium"), // 'low', 'medium', 'high'
+  status: text("status").default("pending"), // 'pending', 'approved', 'rejected', 'in_progress', 'completed'
+  adminNotes: text("admin_notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   challenges: many(challenges),
   submissions: many(submissions),
   progress: many(userProgress),
+  requests: many(studentRequests),
+  userXP: many(userXP),
+  userBadges: many(userBadges),
+  xpTransactions: many(xpTransactions),
 }));
 
 export const challengesRelations = relations(challenges, ({ one, many }) => ({
@@ -234,6 +259,13 @@ export const xpTransactionsRelations = relations(xpTransactions, ({ one }) => ({
   }),
 }));
 
+export const studentRequestsRelations = relations(studentRequests, ({ one }) => ({
+  user: one(users, {
+    fields: [studentRequests.userId],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -298,6 +330,12 @@ export const insertXPTransactionSchema = createInsertSchema(xpTransactions).omit
   createdAt: true,
 });
 
+export const insertStudentRequestSchema = createInsertSchema(studentRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -337,3 +375,6 @@ export type InsertUserBadge = z.infer<typeof insertUserBadgeSchema>;
 
 export type XPTransaction = typeof xpTransactions.$inferSelect;
 export type InsertXPTransaction = z.infer<typeof insertXPTransactionSchema>;
+
+export type StudentRequest = typeof studentRequests.$inferSelect;
+export type InsertStudentRequest = z.infer<typeof insertStudentRequestSchema>;

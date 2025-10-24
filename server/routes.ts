@@ -53,7 +53,8 @@ async function authMiddleware(req: Request, res: Response, next: NextFunction) {
           email: "student@lumoraed.com",
           name: "Development Student",
           firebaseUid: "dev-user-123",
-          role: "student"
+          role: "student",
+          profileComplete: false
         });
       }
       
@@ -218,6 +219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             name: name || "Development User",
             firebaseUid: actualFirebaseUid,
             role: userRole,
+            profileComplete: userRole === "admin", // Only admins have complete profiles by default
           });
         } else {
           // Update existing user with Firebase UID if they don't have one
@@ -324,6 +326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: user.role,
         firebaseUid: user.firebaseUid,
         createdAt: user.createdAt,
+        profileComplete: user.profileComplete,
         totalXP,
         level,
         activeChallenges,
@@ -776,6 +779,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error: any) {
       console.error("Delete roadmap step error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // User profile endpoints
+  app.put("/api/profile", authMiddleware, async (req, res) => {
+    try {
+      const userId = req.userId!;
+      const { rollNumber, branch, year, collegeName } = req.body;
+      
+      if (!rollNumber || !branch || !year || !collegeName) {
+        return res.status(400).json({ error: "All profile fields are required" });
+      }
+
+      const updatedUser = await storage.updateUserProfile(userId, {
+        rollNumber,
+        branch,
+        year,
+        collegeName,
+        profileComplete: true,
+      });
+
+      res.json(updatedUser);
+    } catch (error: any) {
+      console.error("Update profile error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Student request endpoints
+  app.post("/api/requests", authMiddleware, async (req, res) => {
+    try {
+      const userId = req.userId!;
+      const { type, title, description, category, priority } = req.body;
+      
+      if (!type || !title || !description) {
+        return res.status(400).json({ error: "Type, title, and description are required" });
+      }
+
+      const request = await storage.createStudentRequest({
+        userId,
+        type,
+        title,
+        description,
+        category: category || null,
+        priority: priority || "medium",
+      });
+
+      res.json(request);
+    } catch (error: any) {
+      console.error("Create request error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/requests", authMiddleware, async (req, res) => {
+    try {
+      const userId = req.userId!;
+      const requests = await storage.getUserRequests(userId);
+      res.json(requests);
+    } catch (error: any) {
+      console.error("Get requests error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin request management endpoints
+  app.get("/api/admin/requests", authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+      const requests = await storage.getAllStudentRequests();
+      res.json(requests);
+    } catch (error: any) {
+      console.error("Get all requests error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/admin/requests/:id", authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, adminNotes } = req.body;
+      
+      const updatedRequest = await storage.updateStudentRequest(id, {
+        status,
+        adminNotes,
+      });
+
+      res.json(updatedRequest);
+    } catch (error: any) {
+      console.error("Update request error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin student management endpoints
+  app.get("/api/admin/students", authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+      const students = await storage.getAllStudents();
+      res.json(students);
+    } catch (error: any) {
+      console.error("Get students error:", error);
       res.status(500).json({ error: error.message });
     }
   });

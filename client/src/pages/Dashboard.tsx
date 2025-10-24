@@ -1,9 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MetricCard } from "@/components/MetricCard";
 import { ProgressRing } from "@/components/ProgressRing";
-import { BookOpen, Target, Flame, Award, Users, Settings, BarChart3, Plus } from "lucide-react";
+import { RequestForm } from "@/components/RequestForm";
+import { ProfileForm } from "@/components/ProfileForm";
+import { BookOpen, Target, Flame, Award, Users, Settings, BarChart3, Plus, MessageSquare, User } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Challenge, UserProgress } from "@shared/schema";
@@ -14,6 +18,7 @@ interface DashboardData {
   email: string;
   name: string;
   role: string;
+  profileComplete?: boolean;
   activeChallenges: number;
   completionRate: number;
   currentStreak: number;
@@ -28,8 +33,9 @@ interface DashboardData {
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
-
-  const { data: userData, isLoading } = useQuery<DashboardData>({
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const queryClient = useQueryClient();
+  const { data: userData, isLoading, refetch } = useQuery<DashboardData>({
     queryKey: ["/api/dashboard"],
   });
 
@@ -51,6 +57,35 @@ export default function Dashboard() {
         <div className="text-center space-y-4">
           <p className="text-muted-foreground">No data available</p>
         </div>
+      </div>
+    );
+  }
+
+  // Check if profile is complete for students
+  if (userData.role === "student" && !userData.profileComplete) {
+    return (
+      <div className="flex items-center justify-center h-full p-4">
+        <Dialog 
+          open={true} 
+          onOpenChange={() => {
+            // Prevent manual closing - only allow closing when profile is complete
+            // The dialog will automatically close when userData.profileComplete becomes true
+          }}
+        >
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Complete Your Profile</DialogTitle>
+            </DialogHeader>
+            <ProfileForm 
+              onComplete={async () => {
+                // Refetch dashboard data to get updated profileComplete status
+                await refetch();
+                // The dialog will automatically close when userData.profileComplete becomes true
+                // due to the conditional rendering above
+              }} 
+            />
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -158,15 +193,31 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest platform activity</CardDescription>
+            <CardTitle>Student Requests</CardTitle>
+            <CardDescription>Recent requests from students</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-center py-8">
-              <BarChart3 className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <p className="text-muted-foreground">No recent activity</p>
+              <MessageSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <p className="text-muted-foreground">No pending requests</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Activity will appear here as students enroll and complete challenges
+                Student requests will appear here for your review
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Student Management</CardTitle>
+            <CardDescription>View and manage student profiles</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8">
+              <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <p className="text-muted-foreground">No students enrolled yet</p>
+              <p className="text-sm text-muted-foreground mt-1"></p>
+               <p> Student profiles will appear here once they complete registration
               </p>
             </div>
           </CardContent>
@@ -178,11 +229,27 @@ export default function Dashboard() {
   // Student Dashboard
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-4xl font-bold tracking-tight">Student Dashboard</h1>
-        <p className="text-muted-foreground mt-2">
-          Track your progress and continue your learning journey
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold tracking-tight">Student Dashboard</h1>
+          <p className="text-muted-foreground mt-2">
+            Track your progress and continue your learning journey
+          </p>
+        </div>
+        <Dialog open={showRequestForm} onOpenChange={setShowRequestForm}>
+          <DialogTrigger asChild>
+            <Button className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              Request Content
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Request New Content</DialogTitle>
+            </DialogHeader>
+            <RequestForm onClose={() => setShowRequestForm(false)} />
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

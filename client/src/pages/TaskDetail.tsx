@@ -77,7 +77,7 @@ export default function TaskDetail() {
   };
 
   const handleResourceClick = (index: number) => {
-    setResourcesViewed(prev => new Set([...prev, index]));
+    setResourcesViewed(prev => new Set([...Array.from(prev), index]));
   };
 
   const canCompleteTask = () => {
@@ -145,7 +145,7 @@ export default function TaskDetail() {
       <div>
         <Button
           variant="ghost"
-          onClick={() => setLocation(-1)}
+          onClick={() => window.history.back()}
           className="mb-4"
           data-testid="button-back"
         >

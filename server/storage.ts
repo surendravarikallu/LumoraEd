@@ -12,6 +12,7 @@ import {
   badges,
   userBadges,
   xpTransactions,
+  studentRequests,
   type User,
   type InsertUser,
   type Challenge,
@@ -38,6 +39,8 @@ import {
   type InsertUserBadge,
   type XPTransaction,
   type InsertXPTransaction,
+  type StudentRequest,
+  type InsertStudentRequest,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, count } from "drizzle-orm";
@@ -112,6 +115,16 @@ export interface IStorage {
   // XP Transactions
   getUserXPTransactions(userId: string): Promise<XPTransaction[]>;
   createXPTransaction(transaction: InsertXPTransaction): Promise<XPTransaction>;
+  
+  // User Profile
+  updateUserProfile(userId: string, data: Partial<User>): Promise<User>;
+  getAllStudents(): Promise<User[]>;
+  
+  // Student Requests
+  createStudentRequest(request: InsertStudentRequest): Promise<StudentRequest>;
+  getUserRequests(userId: string): Promise<StudentRequest[]>;
+  getAllStudentRequests(): Promise<StudentRequest[]>;
+  updateStudentRequest(id: string, data: Partial<StudentRequest>): Promise<StudentRequest>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -452,6 +465,54 @@ export class DatabaseStorage implements IStorage {
   async createXPTransaction(transaction: InsertXPTransaction): Promise<XPTransaction> {
     const [newTransaction] = await db.insert(xpTransactions).values(transaction).returning();
     return newTransaction;
+  }
+
+  // User Profile
+  async updateUserProfile(userId: string, data: Partial<User>): Promise<User> {
+    const [updatedUser] = await db
+      .update(users)
+      .set(data)
+      .where(eq(users.id, userId))
+      .returning();
+    return updatedUser;
+  }
+
+  async getAllStudents(): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .where(eq(users.role, "student"))
+      .orderBy(desc(users.createdAt));
+  }
+
+  // Student Requests
+  async createStudentRequest(request: InsertStudentRequest): Promise<StudentRequest> {
+    const [newRequest] = await db.insert(studentRequests).values(request).returning();
+    return newRequest;
+  }
+
+  async getUserRequests(userId: string): Promise<StudentRequest[]> {
+    return await db
+      .select()
+      .from(studentRequests)
+      .where(eq(studentRequests.userId, userId))
+      .orderBy(desc(studentRequests.createdAt));
+  }
+
+  async getAllStudentRequests(): Promise<StudentRequest[]> {
+    return await db
+      .select()
+      .from(studentRequests)
+      .orderBy(desc(studentRequests.createdAt));
+  }
+
+  async updateStudentRequest(id: string, data: Partial<StudentRequest>): Promise<StudentRequest> {
+    const [updatedRequest] = await db
+      .update(studentRequests)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(studentRequests.id, id))
+      .returning();
+    return updatedRequest;
   }
 }
 

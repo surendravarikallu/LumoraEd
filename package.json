@@ -4,8 +4,13 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "cross-env NODE_ENV=development tsx server/index.ts",
+    "dev": "cross-env NODE_ENV=production tsx server/index.ts",
+    "build": "vite build",
+    "build:client": "vite build",
+    "build:server": "tsc --project tsconfig.server.json",
     "start": "node dist/server/index.js",
+    "preview": "vite preview",
+    "vercel-build": "npm run build:client",
     "check": "tsc",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
@@ -94,7 +99,8 @@
     "ws": "^8.18.0",
     "xss-clean": "^0.1.4",
     "zod": "^3.24.2",
-    "zod-validation-error": "^3.4.0"
+    "zod-validation-error": "^3.4.0",
+    "tsx": "^4.20.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.38.0",
@@ -126,7 +132,6 @@
     "postcss": "^8.4.47",
     "snyk": "^1.1300.1",
     "tailwindcss": "^3.4.17",
-    "tsx": "^4.20.5",
     "typescript": "5.6.3",
     "vite": "^7.1.12"
   },

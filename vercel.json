@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "buildCommand": "npm run build:client",
   "builds": [
     {
       "src": "client/index.html",

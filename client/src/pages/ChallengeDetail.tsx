@@ -156,80 +156,89 @@ export default function ChallengeDetail() {
           <CardDescription>Complete tasks day by day to finish the challenge</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {tasks.map((task) => {
-              const isCompleted = completedTaskIds.has(task.id);
-              const canAccess = !progress || task.dayNumber <= progress.completedDays + 1;
+          {tasks && tasks.length > 0 ? (
+            <div className="space-y-4">
+              {tasks.map((task) => {
+                const isCompleted = completedTaskIds.has(task.id);
+                const canAccess = !progress || task.dayNumber <= progress.completedDays + 1;
 
-              return (
-                <div
-                  key={task.id}
-                  className={`border rounded-lg p-6 space-y-4 ${
-                    canAccess ? "hover-elevate cursor-pointer" : "opacity-50"
-                  }`}
-                  onClick={() => canAccess && setLocation(`/tasks/${task.id}`)}
-                  data-testid={`task-${task.id}`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-4 flex-1">
-                      <div className="mt-1">
-                        {isCompleted ? (
-                          <CheckCircle2 className="h-6 w-6 text-primary" data-testid={`icon-completed-${task.id}`} />
-                        ) : (
-                          <Circle className="h-6 w-6 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="outline">Day {task.dayNumber}</Badge>
-                          {isCompleted && <Badge variant="default">Completed</Badge>}
+                return (
+                  <div
+                    key={task.id}
+                    className={`border rounded-lg p-6 space-y-4 ${
+                      canAccess ? "hover-elevate cursor-pointer" : "opacity-50"
+                    }`}
+                    onClick={() => canAccess && setLocation(`/tasks/${task.id}`)}
+                    data-testid={`task-${task.id}`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4 flex-1">
+                        <div className="mt-1">
+                          {isCompleted ? (
+                            <CheckCircle2 className="h-6 w-6 text-primary" data-testid={`icon-completed-${task.id}`} />
+                          ) : (
+                            <Circle className="h-6 w-6 text-muted-foreground" />
+                          )}
                         </div>
-                        <h3 className="font-semibold text-lg">{task.title}</h3>
-                        <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
-                          {task.content}
-                        </p>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline">Day {task.dayNumber}</Badge>
+                            {isCompleted && <Badge variant="default">Completed</Badge>}
+                          </div>
+                          <h3 className="font-semibold text-lg">{task.title}</h3>
+                          <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+                            {task.content}
+                          </p>
+                        </div>
                       </div>
+                      {canAccess && (
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setLocation(`/tasks/${task.id}`);
+                          }}
+                          variant={isCompleted ? "outline" : "default"}
+                          data-testid={`button-view-task-${task.id}`}
+                        >
+                          {isCompleted ? "Review" : "Start"}
+                        </Button>
+                      )}
                     </div>
-                    {canAccess && (
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setLocation(`/tasks/${task.id}`);
-                        }}
-                        variant={isCompleted ? "outline" : "default"}
-                        data-testid={`button-view-task-${task.id}`}
-                      >
-                        {isCompleted ? "Review" : "Start"}
-                      </Button>
+
+                    {task.resourceLinks && task.resourceLinks.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {task.resourceLinks.map((resource, index) => {
+                          const Icon = getResourceIcon(resource.type);
+                          return (
+                            <a
+                              key={index}
+                              href={resource.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                              data-testid={`resource-${task.id}-${index}`}
+                            >
+                              <Icon className="h-4 w-4" />
+                              {resource.title}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
-
-                  {task.resourceLinks && task.resourceLinks.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      {task.resourceLinks.map((resource, index) => {
-                        const Icon = getResourceIcon(resource.type);
-                        return (
-                          <a
-                            key={index}
-                            href={resource.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-                            data-testid={`resource-${task.id}-${index}`}
-                          >
-                            <Icon className="h-4 w-4" />
-                            {resource.title}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground mb-4">No tasks available for this challenge yet</p>
+              <p className="text-sm text-muted-foreground">
+                Tasks will appear here once they are added by an administrator
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

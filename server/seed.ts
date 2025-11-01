@@ -21,73 +21,113 @@ async function seedDatabase() {
       console.log("✅ Admin user already exists:", adminUser.email);
     }
 
+    // Get existing challenges to avoid duplicates
+    console.log("📚 Checking existing challenges...");
+    const existingChallenges = await storage.getAllChallenges();
+    const challengeMap = new Map(existingChallenges.map(c => [c.title, c]));
+
+    // Helper function to get or create challenge
+    const getOrCreateChallenge = async (title: string, description: string, duration: number) => {
+      if (challengeMap.has(title)) {
+        const existing = challengeMap.get(title)!;
+        console.log(`  ✓ Challenge already exists: ${title}`);
+        return existing;
+      }
+      const newChallenge = await storage.createChallenge({
+        title,
+        description,
+        duration,
+        createdBy: adminUser.id
+      });
+      challengeMap.set(title, newChallenge);
+      console.log(`  + Created new challenge: ${title}`);
+      return newChallenge;
+    };
+
     // Create comprehensive programming challenges
     console.log("📚 Creating comprehensive programming challenges...");
     
     // 10-Day Challenges
-    const python10Day = await storage.createChallenge({
-      title: "10 Days Python Bootcamp",
-      description: "Intensive 10-day Python programming bootcamp covering fundamentals, data structures, and basic algorithms. Perfect for beginners who want to get started quickly.",
-      duration: 10,
-      createdBy: adminUser.id
-    });
+    const python10Day = await getOrCreateChallenge(
+      "10 Days Python Bootcamp",
+      "Intensive 10-day Python programming bootcamp covering fundamentals, data structures, and basic algorithms. Perfect for beginners who want to get started quickly.",
+      10
+    );
 
-    const javascript10Day = await storage.createChallenge({
-      title: "10 Days JavaScript Mastery",
-      description: "Fast-track JavaScript learning covering ES6+, DOM manipulation, async programming, and modern JavaScript features.",
-      duration: 10,
-      createdBy: adminUser.id
-    });
+    const javascript10Day = await getOrCreateChallenge(
+      "10 Days JavaScript Mastery",
+      "Fast-track JavaScript learning covering ES6+, DOM manipulation, async programming, and modern JavaScript features.",
+      10
+    );
 
     // 30-Day Challenges
-    const python30Day = await storage.createChallenge({
-      title: "30 Days Python Programming",
-      description: "Comprehensive Python programming course covering fundamentals, OOP, data structures, algorithms, web development with Flask/Django, and data analysis.",
-      duration: 30,
-      createdBy: adminUser.id
-    });
+    const python30Day = await getOrCreateChallenge(
+      "30 Days Python Programming",
+      "Comprehensive Python programming course covering fundamentals, OOP, data structures, algorithms, web development with Flask/Django, and data analysis.",
+      30
+    );
 
-    const java30Day = await storage.createChallenge({
-      title: "30 Days Java Development",
-      description: "Master Java programming from basics to advanced concepts including OOP, collections, multithreading, Spring framework, and enterprise development.",
-      duration: 30,
-      createdBy: adminUser.id
-    });
+    const java30Day = await getOrCreateChallenge(
+      "30 Days Java Development",
+      "Master Java programming from basics to advanced concepts including OOP, collections, multithreading, Spring framework, and enterprise development.",
+      30
+    );
 
-    const webDev30Day = await storage.createChallenge({
-      title: "30 Days Full-Stack Web Development",
-      description: "Complete web development course covering HTML, CSS, JavaScript, React, Node.js, databases, and deployment. Build real projects.",
-      duration: 30,
-      createdBy: adminUser.id
-    });
+    const webDev30Day = await getOrCreateChallenge(
+      "30 Days Full-Stack Web Development",
+      "Complete web development course covering HTML, CSS, JavaScript, React, Node.js, databases, and deployment. Build real projects.",
+      30
+    );
 
     // 60-Day Challenges
-    const python60Day = await storage.createChallenge({
-      title: "60 Days Python Data Science",
-      description: "Comprehensive data science program with Python covering pandas, numpy, matplotlib, scikit-learn, machine learning, deep learning, and real-world projects.",
-      duration: 60,
-      createdBy: adminUser.id
-    });
+    const python60Day = await getOrCreateChallenge(
+      "60 Days Python Data Science",
+      "Comprehensive data science program with Python covering pandas, numpy, matplotlib, scikit-learn, machine learning, deep learning, and real-world projects.",
+      60
+    );
 
-    const systemDesign60Day = await storage.createChallenge({
-      title: "60 Days System Design & Architecture",
-      description: "Master system design principles, microservices, cloud architecture, scalability, databases, caching, and build production-ready systems.",
-      duration: 60,
-      createdBy: adminUser.id
-    });
+    const systemDesign60Day = await getOrCreateChallenge(
+      "60 Days System Design & Architecture",
+      "Master system design principles, microservices, cloud architecture, scalability, databases, caching, and build production-ready systems.",
+      60
+    );
 
-    const mobileDev60Day = await storage.createChallenge({
-      title: "60 Days Mobile App Development",
-      description: "Complete mobile development course covering React Native, Flutter, iOS/Android development, app store deployment, and cross-platform solutions.",
-      duration: 60,
-      createdBy: adminUser.id
-    });
+    const mobileDev60Day = await getOrCreateChallenge(
+      "60 Days Mobile App Development",
+      "Complete mobile development course covering React Native, Flutter, iOS/Android development, app store deployment, and cross-platform solutions.",
+      60
+    );
 
     console.log("✅ Challenges created:", [
       python10Day.title, javascript10Day.title,
       python30Day.title, java30Day.title, webDev30Day.title,
       python60Day.title, systemDesign60Day.title, mobileDev60Day.title
     ]);
+
+    // Helper function to get or create tasks (checks for existing tasks by dayNumber)
+    const getOrCreateTasks = async (challengeId: string, tasks: any[], challengeName: string) => {
+      const existingTasks = await storage.getTasksByChallenge(challengeId);
+      const existingDayNumbers = new Set(existingTasks.map(t => t.dayNumber));
+      
+      const tasksToCreate = tasks.filter(t => !existingDayNumbers.has(t.dayNumber));
+      
+      if (tasksToCreate.length === 0) {
+        console.log(`  ✓ All tasks already exist for ${challengeName} (${existingTasks.length} tasks)`);
+        return;
+      }
+      
+      console.log(`  + Creating ${tasksToCreate.length} new tasks for ${challengeName} (${existingTasks.length} existing)`);
+      
+      for (const taskData of tasksToCreate) {
+        await storage.createTask({
+          challengeId,
+          dayNumber: taskData.dayNumber,
+          title: taskData.title,
+          content: taskData.content,
+          resourceLinks: taskData.resourceLinks
+        });
+      }
+    };
 
     // Create tasks for 10-Day Python Bootcamp
     console.log("📝 Creating tasks for 10-Day Python Bootcamp...");
@@ -194,15 +234,7 @@ async function seedDatabase() {
       }
     ];
 
-    for (const taskData of python10DayTasks) {
-      await storage.createTask({
-        challengeId: python10Day.id,
-        dayNumber: taskData.dayNumber,
-        title: taskData.title,
-        content: taskData.content,
-        resourceLinks: taskData.resourceLinks
-      });
-    }
+    await getOrCreateTasks(python10Day.id, python10DayTasks, "10-Day Python Bootcamp");
 
     // Create tasks for 30-Day Python Programming
     console.log("📝 Creating tasks for 30-Day Python Programming...");
@@ -513,15 +545,7 @@ async function seedDatabase() {
       }
     ];
 
-    for (const taskData of python30DayTasks) {
-      await storage.createTask({
-        challengeId: python30Day.id,
-        dayNumber: taskData.dayNumber,
-        title: taskData.title,
-        content: taskData.content,
-        resourceLinks: taskData.resourceLinks
-      });
-    }
+    await getOrCreateTasks(python30Day.id, python30DayTasks, "30-Day Python Programming");
 
     // Create tasks for 60-Day Python Data Science
     console.log("📝 Creating tasks for 60-Day Python Data Science...");
@@ -832,15 +856,92 @@ async function seedDatabase() {
       }
     ];
 
-    for (const taskData of python60DayTasks) {
-      await storage.createTask({
-        challengeId: python60Day.id,
-        dayNumber: taskData.dayNumber,
-        title: taskData.title,
-        content: taskData.content,
-        resourceLinks: taskData.resourceLinks
-      });
-    }
+    await getOrCreateTasks(python60Day.id, python60DayTasks, "60-Day Python Data Science");
+
+    // Extend Python 60-Day to complete 60 days (days 31-60)
+    console.log("📝 Extending 60-Day Python Data Science with days 31-60...");
+    const python60DayExtendedTasks = Array.from({ length: 30 }, (_, i) => ({
+      dayNumber: 31 + i,
+      title: `Advanced Data Science - Day ${31 + i}`,
+      content: `Continue your data science journey with advanced topics including deep learning projects, model optimization, production deployment, and real-world case studies.`,
+      resourceLinks: [
+        { type: "video", title: "Advanced Data Science", url: "https://www.youtube.com/watch?v=aircAruvnKk" },
+        { type: "practice", title: "Kaggle Projects", url: "https://www.kaggle.com/learn" },
+        { type: "documentation", title: "Advanced ML Guide", url: "https://scikit-learn.org/stable/" }
+      ]
+    }));
+
+    await getOrCreateTasks(python60Day.id, python60DayExtendedTasks, "60-Day Python Data Science (Extended)");
+
+    // Create tasks for 60-Day System Design & Architecture
+    console.log("📝 Creating tasks for 60-Day System Design & Architecture...");
+    const systemDesign60DayTasks = Array.from({ length: 60 }, (_, i) => {
+      const dayNum = i + 1;
+      let title = "";
+      let content = "";
+      
+      if (dayNum <= 15) {
+        title = `System Design Fundamentals - Day ${dayNum}`;
+        content = `Learn fundamental system design principles including scalability, reliability, performance, and distributed systems basics.`;
+      } else if (dayNum <= 30) {
+        title = `Microservices & Architecture - Day ${dayNum}`;
+        content = `Master microservices architecture, API design, service communication, and distributed system patterns.`;
+      } else if (dayNum <= 45) {
+        title = `Cloud Architecture & Scaling - Day ${dayNum}`;
+        content = `Learn cloud architecture, auto-scaling, load balancing, caching strategies, and infrastructure as code.`;
+      } else {
+        title = `Advanced System Design - Day ${dayNum}`;
+        content = `Advanced topics including databases, message queues, monitoring, security, and production system design.`;
+      }
+      
+      return {
+        dayNumber: dayNum,
+        title,
+        content,
+        resourceLinks: [
+          { type: "video", title: "System Design", url: "https://www.youtube.com/watch?v=ZgdS0OUmnzs" },
+          { type: "practice", title: "System Design Practice", url: "https://github.com/donnemartin/system-design-primer" },
+          { type: "documentation", title: "Architecture Patterns", url: "https://aws.amazon.com/architecture/" }
+        ]
+      };
+    });
+
+    await getOrCreateTasks(systemDesign60Day.id, systemDesign60DayTasks, "60-Day System Design & Architecture");
+
+    // Create tasks for 60-Day Mobile App Development
+    console.log("📝 Creating tasks for 60-Day Mobile App Development...");
+    const mobileDev60DayTasks = Array.from({ length: 60 }, (_, i) => {
+      const dayNum = i + 1;
+      let title = "";
+      let content = "";
+      
+      if (dayNum <= 15) {
+        title = `Mobile Development Basics - Day ${dayNum}`;
+        content = `Learn mobile app development fundamentals including React Native/Flutter basics, UI components, and navigation.`;
+      } else if (dayNum <= 30) {
+        title = `State Management & APIs - Day ${dayNum}`;
+        content = `Master state management, API integration, async operations, and data persistence in mobile apps.`;
+      } else if (dayNum <= 45) {
+        title = `Advanced Mobile Features - Day ${dayNum}`;
+        content = `Learn advanced features including push notifications, location services, camera, authentication, and native modules.`;
+      } else {
+        title = `Publishing & Optimization - Day ${dayNum}`;
+        content = `App store deployment, performance optimization, testing, and publishing mobile applications.`;
+      }
+      
+      return {
+        dayNumber: dayNum,
+        title,
+        content,
+        resourceLinks: [
+          { type: "video", title: "Mobile Development", url: "https://www.youtube.com/watch?v=0-S5a0eXPoc" },
+          { type: "practice", title: "React Native/Flutter", url: "https://reactnative.dev/docs/getting-started" },
+          { type: "documentation", title: "Mobile App Guide", url: "https://flutter.dev/docs" }
+        ]
+      };
+    });
+
+    await getOrCreateTasks(mobileDev60Day.id, mobileDev60DayTasks, "60-Day Mobile App Development");
 
     // Create tasks for 10-Day JavaScript Mastery
     console.log("📝 Creating tasks for 10-Day JavaScript Mastery...");
@@ -947,15 +1048,7 @@ async function seedDatabase() {
       }
     ];
 
-    for (const taskData of javascript10DayTasks) {
-      await storage.createTask({
-        challengeId: javascript10Day.id,
-        dayNumber: taskData.dayNumber,
-        title: taskData.title,
-        content: taskData.content,
-        resourceLinks: taskData.resourceLinks
-      });
-    }
+    await getOrCreateTasks(javascript10Day.id, javascript10DayTasks, "10-Day JavaScript Mastery");
 
     // Create tasks for 30-Day Java Development
     console.log("📝 Creating tasks for 30-Day Java Development...");
@@ -1266,15 +1359,7 @@ async function seedDatabase() {
       }
     ];
 
-    for (const taskData of java30DayTasks) {
-      await storage.createTask({
-        challengeId: java30Day.id,
-        dayNumber: taskData.dayNumber,
-        title: taskData.title,
-        content: taskData.content,
-        resourceLinks: taskData.resourceLinks
-      });
-    }
+    await getOrCreateTasks(java30Day.id, java30DayTasks, "30-Day Java Development");
 
     // Create tasks for 30-Day Full-Stack Web Development
     console.log("📝 Creating tasks for 30-Day Full-Stack Web Development...");
@@ -1585,15 +1670,7 @@ async function seedDatabase() {
       }
     ];
 
-    for (const taskData of webDev30DayTasks) {
-      await storage.createTask({
-        challengeId: webDev30Day.id,
-        dayNumber: taskData.dayNumber,
-        title: taskData.title,
-        content: taskData.content,
-        resourceLinks: taskData.resourceLinks
-      });
-    }
+    await getOrCreateTasks(webDev30Day.id, webDev30DayTasks, "30-Day Full-Stack Web Development");
 
     // Create comprehensive certifications
     console.log("🏆 Creating comprehensive certifications...");
@@ -1711,7 +1788,11 @@ async function seedDatabase() {
     console.log("\n📊 Summary:");
     console.log(`- Admin user: admin@lumoraed.com`);
     console.log(`- Challenges: 8 created (10-day, 30-day, 60-day programs)`);
-    console.log(`- Tasks: ${python10DayTasks.length + python30DayTasks.length + python60DayTasks.length} created`);
+    const totalTasks = python10DayTasks.length + python30DayTasks.length + python60DayTasks.length + 
+                       python60DayExtendedTasks.length + systemDesign60DayTasks.length + 
+                       javascript10DayTasks.length + java30DayTasks.length + webDev30DayTasks.length +
+                       mobileDev60DayTasks.length;
+    console.log(`- Tasks: ${totalTasks} created`);
     console.log(`- Certifications: ${certifications.length} created`);
     console.log("\n🚀 Features included:");
     console.log("  ✅ Admin authentication system");
@@ -1735,16 +1816,15 @@ async function seedDatabase() {
 }
 
 // Run the seeding if this file is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  seedDatabase()
-    .then(() => {
-      console.log("✅ Seeding completed");
-      process.exit(0);
-    })
-    .catch((error) => {
-      console.error("❌ Seeding failed:", error);
-      process.exit(1);
-    });
-}
+seedDatabase()
+  .then(() => {
+    console.log("✅ Seeding completed successfully!");
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error("❌ Seeding failed:", error);
+    console.error(error.stack);
+    process.exit(1);
+  });
 
 export { seedDatabase };

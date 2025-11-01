@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { signInWithGoogle, signUpWithEmail } from "@/lib/firebase";
+import { Footer } from "@/components/Footer";
 import { BookOpen } from "lucide-react";
 
 export default function Register() {
@@ -54,7 +55,7 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
           <div className="flex justify-center mb-4">
@@ -162,6 +163,9 @@ export default function Register() {
           </p>
         </CardFooter>
       </Card>
+      <div className="w-full max-w-md mt-8">
+        <Footer />
+      </div>
     </div>
   );
 }

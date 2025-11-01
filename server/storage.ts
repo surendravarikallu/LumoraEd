@@ -43,7 +43,7 @@ import {
   type InsertStudentRequest,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, count } from "drizzle-orm";
+import { eq, and, desc, count, asc } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -191,7 +191,11 @@ export class DatabaseStorage implements IStorage {
 
   // Tasks
   async getTasksByChallenge(challengeId: string): Promise<Task[]> {
-    return await db.select().from(tasks).where(eq(tasks.challengeId, challengeId));
+    return await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.challengeId, challengeId))
+      .orderBy(asc(tasks.dayNumber));
   }
 
   async getTask(id: string): Promise<Task | undefined> {

@@ -7,10 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, BookOpen, Trophy, Map } from "lucide-react";
+import { Plus, Trash2, BookOpen, Trophy, Map, MessageSquare, CheckCircle, XCircle, Clock } from "lucide-react";
 import type { Challenge, Certification, Task, Roadmap } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function Admin() {
   const { toast } = useToast();
@@ -35,6 +37,39 @@ export default function Admin() {
 
   const { data: roadmaps } = useQuery<Roadmap[]>({
     queryKey: ["/api/admin/roadmaps"],
+  });
+
+  const { data: studentRequests, isLoading: requestsLoading } = useQuery<Array<{
+    id: string;
+    userId: string;
+    type: string;
+    title: string;
+    description: string;
+    category?: string | null;
+    priority: string;
+    status: string;
+    adminNotes?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    user: {
+      id: string;
+      name: string;
+      email: string;
+    } | null;
+  }>>({
+    queryKey: ["/api/admin/requests"],
+  });
+
+  const updateRequestMutation = useMutation({
+    mutationFn: ({ id, status, adminNotes }: { id: string; status: string; adminNotes?: string }) =>
+      apiRequest("PUT", `/api/admin/requests/${id}`, { status, adminNotes }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/requests"] });
+      toast({ title: "Request updated successfully" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update request", variant: "destructive" });
+    },
   });
 
   const createChallengeMutation = useMutation({
@@ -140,6 +175,14 @@ export default function Admin() {
           <TabsTrigger value="challenges">Challenges</TabsTrigger>
           <TabsTrigger value="roadmaps">Roadmaps</TabsTrigger>
           <TabsTrigger value="certifications">Certifications</TabsTrigger>
+          <TabsTrigger value="requests">
+            Requests
+            {studentRequests && studentRequests.filter(r => r.status === "pending").length > 0 && (
+              <Badge variant="destructive" className="ml-2">
+                {studentRequests.filter(r => r.status === "pending").length}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="challenges" className="space-y-6">
@@ -463,6 +506,113 @@ export default function Admin() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="requests" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Student Requests</CardTitle>
+              <CardDescription>
+                Manage and review requests from students ({studentRequests?.length ?? 0} total, {" "}
+                {studentRequests?.filter(r => r.status === "pending").length ?? 0} pending)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {requestsLoading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                  <p className="text-muted-foreground mt-4">Loading requests...</p>
+                </div>
+              ) : !studentRequests || studentRequests.length === 0 ? (
+                <div className="text-center py-8">
+                  <MessageSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <p className="text-muted-foreground">No requests yet</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Student requests will appear here for your review
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {studentRequests.map((request) => (
+                    <div
+                      key={request.id}
+                      className="border rounded-lg p-6 space-y-4"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge variant="outline">{request.type}</Badge>
+                            <Badge
+                              variant={
+                                request.status === "pending"
+                                  ? "secondary"
+                                  : request.status === "approved"
+                                  ? "default"
+                                  : request.status === "rejected"
+                                  ? "destructive"
+                                  : "outline"
+                              }
+                            >
+                              {request.status.replace("_", " ")}
+                            </Badge>
+                            {request.priority === "high" && (
+                              <Badge variant="destructive">High Priority</Badge>
+                            )}
+                          </div>
+                          <h4 className="font-semibold text-lg">{request.title}</h4>
+                          <p className="text-sm text-muted-foreground mt-2">{request.description}</p>
+                          {request.user && (
+                            <p className="text-sm text-muted-foreground mt-2">
+                              <span className="font-medium">From: </span>
+                              {request.user.name} ({request.user.email})
+                            </p>
+                          )}
+                          {request.category && (
+                            <p className="text-xs text-muted-foreground mt-1">Category: {request.category}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Submitted: {new Date(request.createdAt).toLocaleDateString()}
+                            {request.updatedAt && request.updatedAt !== request.createdAt && (
+                              <> • Updated: {new Date(request.updatedAt).toLocaleDateString()}</>
+                            )}
+                          </p>
+                          {request.adminNotes && (
+                            <div className="mt-3 p-3 bg-muted rounded text-sm">
+                              <span className="font-medium">Admin Notes: </span>
+                              {request.adminNotes}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 pt-2 border-t">
+                        <Select
+                          value={request.status}
+                          onValueChange={(newStatus) => {
+                            updateRequestMutation.mutate({
+                              id: request.id,
+                              status: newStatus,
+                            });
+                          }}
+                          disabled={updateRequestMutation.isPending}
+                        >
+                          <SelectTrigger className="w-48">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="approved">Approved</SelectItem>
+                            <SelectItem value="rejected">Rejected</SelectItem>
+                            <SelectItem value="in_progress">In Progress</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

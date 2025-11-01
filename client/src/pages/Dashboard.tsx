@@ -4,15 +4,19 @@ import { MetricCard } from "@/components/MetricCard";
 import { ProgressRing } from "@/components/ProgressRing";
 import { RequestForm } from "@/components/RequestForm";
 import { ProfileForm } from "@/components/ProfileForm";
-import { BookOpen, Target, Flame, Award, Users, Settings, BarChart3, Plus, MessageSquare, User, Mail, Calendar, GraduationCap } from "lucide-react";
+import { BookOpen, Target, Flame, Award, Users, Settings, BarChart3, Plus, MessageSquare, User, Mail, Calendar, GraduationCap, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { Challenge, UserProgress } from "@shared/schema";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface DashboardData {
   id: string;
@@ -34,6 +38,7 @@ interface DashboardData {
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [showRequestForm, setShowRequestForm] = useState(false);
   const queryClient = useQueryClient();
   const { data: userData, isLoading, refetch } = useQuery<DashboardData>({
@@ -68,6 +73,28 @@ export default function Dashboard() {
     collegeName?: string | null;
   }>>({
     queryKey: ["/api/admin/students"],
+    enabled: userData?.role === "admin", // Only fetch when user is admin
+  });
+
+  const { data: studentRequests, isLoading: requestsLoading } = useQuery<Array<{
+    id: string;
+    userId: string;
+    type: string;
+    title: string;
+    description: string;
+    category?: string | null;
+    priority: string;
+    status: string;
+    adminNotes?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    user: {
+      id: string;
+      name: string;
+      email: string;
+    } | null;
+  }>>({
+    queryKey: ["/api/admin/requests"],
     enabled: userData?.role === "admin", // Only fetch when user is admin
   });
 
@@ -227,16 +254,111 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Student Requests</CardTitle>
-            <CardDescription>Recent requests from students</CardDescription>
+            <CardDescription>
+              Review and manage requests from students ({studentRequests?.length ?? 0} total)
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8">
-              <MessageSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <p className="text-muted-foreground">No pending requests</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Student requests will appear here for your review
-              </p>
-            </div>
+            {requestsLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="text-muted-foreground mt-4">Loading requests...</p>
+              </div>
+            ) : !studentRequests || studentRequests.length === 0 ? (
+              <div className="text-center py-8">
+                <MessageSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <p className="text-muted-foreground">No requests yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Student requests will appear here for your review
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {studentRequests.map((request) => (
+                  <div
+                    key={request.id}
+                    className="border rounded-lg p-4 space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="outline">{request.type}</Badge>
+                          <Badge
+                            variant={
+                              request.status === "pending"
+                                ? "secondary"
+                                : request.status === "approved"
+                                ? "default"
+                                : request.status === "rejected"
+                                ? "destructive"
+                                : "outline"
+                            }
+                          >
+                            {request.status}
+                          </Badge>
+                          {request.priority === "high" && (
+                            <Badge variant="destructive">High Priority</Badge>
+                          )}
+                        </div>
+                        <h4 className="font-semibold text-lg">{request.title}</h4>
+                        <p className="text-sm text-muted-foreground mt-1">{request.description}</p>
+                        {request.user && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            From: {request.user.name} ({request.user.email})
+                          </p>
+                        )}
+                        {request.category && (
+                          <p className="text-xs text-muted-foreground mt-1">Category: {request.category}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Submitted: {new Date(request.createdAt).toLocaleDateString()}
+                        </p>
+                        {request.adminNotes && (
+                          <div className="mt-2 p-2 bg-muted rounded text-sm">
+                            <span className="font-medium">Admin Notes: </span>
+                            {request.adminNotes}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={request.status}
+                        onValueChange={async (newStatus) => {
+                          try {
+                            await apiRequest("PUT", `/api/admin/requests/${request.id}`, {
+                              status: newStatus,
+                            });
+                            queryClient.invalidateQueries({ queryKey: ["/api/admin/requests"] });
+                            toast({
+                              title: "Request updated",
+                              description: `Request status changed to ${newStatus}`,
+                            });
+                          } catch (error) {
+                            toast({
+                              title: "Error",
+                              description: "Failed to update request status",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="approved">Approved</SelectItem>
+                          <SelectItem value="rejected">Rejected</SelectItem>
+                          <SelectItem value="in_progress">In Progress</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 

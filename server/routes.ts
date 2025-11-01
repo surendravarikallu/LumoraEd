@@ -849,7 +849,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/requests", authMiddleware, adminMiddleware, async (req, res) => {
     try {
       const requests = await storage.getAllStudentRequests();
-      res.json(requests);
+      
+      // Get user information for each request
+      const requestsWithUsers = await Promise.all(
+        requests.map(async (request) => {
+          const user = await storage.getUser(request.userId);
+          return {
+            ...request,
+            user: user ? {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+            } : null,
+          };
+        })
+      );
+      
+      res.json(requestsWithUsers);
     } catch (error: any) {
       console.error("Get all requests error:", error);
       res.status(500).json({ error: error.message });

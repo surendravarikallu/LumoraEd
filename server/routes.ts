@@ -877,9 +877,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/students", authMiddleware, adminMiddleware, async (req, res) => {
     try {
       const students = await storage.getAllStudents();
-      res.json(students);
+      const allChallenges = await storage.getAllChallenges();
+      const challengesMap = new Map(allChallenges.map(c => [c.id, c]));
+      
+      // Get additional data for each student
+      const studentsWithDetails = await Promise.all(
+        students.map(async (student) => {
+          const progress = await storage.getUserProgress(student.id);
+          const xpData = await storage.getUserXP(student.id);
+          const enrolledChallenges = progress.length;
+          
+          // Calculate active and completed challenges
+          let activeChallenges = 0;
+          let completedChallenges = 0;
+          
+          progress.forEach(p => {
+            const challenge = challengesMap.get(p.challengeId);
+            if (challenge) {
+              if (p.completedDays >= challenge.duration) {
+                completedChallenges++;
+              } else {
+                activeChallenges++;
+              }
+            }
+          });
+          
+          return {
+            ...student,
+            enrolledChallenges,
+            activeChallenges,
+            completedChallenges,
+            totalXP: xpData?.totalXP || 0,
+            level: xpData?.level || 1,
+          };
+        })
+      );
+      
+      res.json(studentsWithDetails);
     } catch (error: any) {
       console.error("Get students error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin statistics endpoint
+  app.get("/api/admin/stats", authMiddleware, adminMiddleware, async (req, res) => {
+    try {
+      const stats = await storage.getAdminStatistics();
+      res.json(stats);
+    } catch (error: any) {
+      console.error("Get admin stats error:", error);
       res.status(500).json({ error: error.message });
     }
   });

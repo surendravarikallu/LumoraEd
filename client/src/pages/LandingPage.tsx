@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Footer } from "@/components/Footer";
 import { BookOpen, Trophy, Users, Target, Star, ArrowRight, CheckCircle, Zap, Brain, Gamepad2, Sparkles, AlertTriangle } from "lucide-react";
 
 export default function LandingPage() {
@@ -244,8 +245,9 @@ export default function LandingPage() {
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">LumoraEd</span>
             </div>
-            <div className="text-sm text-gray-300">
-              © 2024 LumoraEd. All rights reserved. Made with ❤️ for Gen Z learners.
+            <div className="flex flex-col md:flex-row items-center gap-4 text-sm text-gray-300">
+              <div>© 2025 LumoraEd. All rights reserved.</div>
+              <div>Developed by varikallu surendra</div>
             </div>
           </div>
         </div>

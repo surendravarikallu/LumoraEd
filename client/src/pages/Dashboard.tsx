@@ -4,7 +4,7 @@ import { MetricCard } from "@/components/MetricCard";
 import { ProgressRing } from "@/components/ProgressRing";
 import { RequestForm } from "@/components/RequestForm";
 import { ProfileForm } from "@/components/ProfileForm";
-import { BookOpen, Target, Flame, Award, Users, Settings, BarChart3, Plus, MessageSquare, User } from "lucide-react";
+import { BookOpen, Target, Flame, Award, Users, Settings, BarChart3, Plus, MessageSquare, User, Mail, Calendar, GraduationCap } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -12,6 +12,7 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Challenge, UserProgress } from "@shared/schema";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface DashboardData {
   id: string;
@@ -37,6 +38,37 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const { data: userData, isLoading, refetch } = useQuery<DashboardData>({
     queryKey: ["/api/dashboard"],
+  });
+
+  // Admin queries - must be called before conditional returns (React Hooks rule)
+  const { data: adminStats, isLoading: statsLoading } = useQuery<{
+    totalChallenges: number;
+    totalTasks: number;
+    activeStudents: number;
+    totalCertifications: number;
+  }>({
+    queryKey: ["/api/admin/stats"],
+    enabled: userData?.role === "admin", // Only fetch when user is admin
+  });
+
+  const { data: students, isLoading: studentsLoading } = useQuery<Array<{
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    createdAt: Date;
+    profileComplete?: boolean;
+    enrolledChallenges: number;
+    activeChallenges: number;
+    totalXP: number;
+    level: number;
+    rollNumber?: string | null;
+    branch?: string | null;
+    year?: string | null;
+    collegeName?: string | null;
+  }>>({
+    queryKey: ["/api/admin/students"],
+    enabled: userData?.role === "admin", // Only fetch when user is admin
   });
 
   if (isLoading) {
@@ -104,6 +136,7 @@ export default function Dashboard() {
 
   // Admin Dashboard
   if (userData?.role === "admin") {
+
     return (
       <div className="space-y-8">
         <div>
@@ -116,25 +149,25 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <MetricCard
             title="Total Challenges"
-            value={8}
+            value={statsLoading ? "..." : (adminStats?.totalChallenges ?? 0)}
             icon={BookOpen}
             description="Created challenges"
           />
           <MetricCard
             title="Total Tasks"
-            value={70}
+            value={statsLoading ? "..." : (adminStats?.totalTasks ?? 0)}
             icon={Target}
             description="Learning tasks"
           />
           <MetricCard
             title="Active Students"
-            value={0}
+            value={statsLoading ? "..." : (adminStats?.activeStudents ?? 0)}
             icon={Users}
             description="Currently enrolled"
           />
           <MetricCard
             title="Certifications"
-            value={19}
+            value={statsLoading ? "..." : (adminStats?.totalCertifications ?? 0)}
             icon={Award}
             description="Available certifications"
           />
@@ -210,16 +243,86 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Student Management</CardTitle>
-            <CardDescription>View and manage student profiles</CardDescription>
+            <CardDescription>
+              View and manage student profiles ({students?.length ?? 0} total students)
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8">
-              <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <p className="text-muted-foreground">No students enrolled yet</p>
-              <p className="text-sm text-muted-foreground mt-1"></p>
-               <p> Student profiles will appear here once they complete registration
-              </p>
-            </div>
+            {studentsLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="text-muted-foreground mt-4">Loading students...</p>
+              </div>
+            ) : !students || students.length === 0 ? (
+              <div className="text-center py-8">
+                <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <p className="text-muted-foreground">No students enrolled yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Student profiles will appear here once they complete registration
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Profile</TableHead>
+                      <TableHead>Enrolled</TableHead>
+                      <TableHead>Active</TableHead>
+                      <TableHead>Level</TableHead>
+                      <TableHead>XP</TableHead>
+                      <TableHead>Joined</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {students.map((student) => (
+                      <TableRow key={student.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            {student.name}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-3 w-3 text-muted-foreground" />
+                            {student.email}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {student.profileComplete ? (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                              Complete
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                              Incomplete
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>{student.enrolledChallenges}</TableCell>
+                        <TableCell>{student.activeChallenges}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Award className="h-3 w-3 text-primary" />
+                            {student.level}
+                          </div>
+                        </TableCell>
+                        <TableCell>{student.totalXP} XP</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(student.createdAt).toLocaleDateString()}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

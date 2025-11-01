@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Footer } from "@/components/Footer";
 import NotFound from "@/pages/not-found";
 import LandingPage from "@/pages/LandingPage";
 import Login from "@/pages/Login";
@@ -73,6 +74,7 @@ function AuthenticatedLayout() {
               <Route component={NotFound} />
             </Switch>
           </main>
+          <Footer />
         </div>
       </div>
     </SidebarProvider>

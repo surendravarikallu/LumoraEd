@@ -120,6 +120,14 @@ export interface IStorage {
   updateUserProfile(userId: string, data: Partial<User>): Promise<User>;
   getAllStudents(): Promise<User[]>;
   
+  // Admin Statistics
+  getAdminStatistics(): Promise<{
+    totalChallenges: number;
+    totalTasks: number;
+    activeStudents: number;
+    totalCertifications: number;
+  }>;
+  
   // Student Requests
   createStudentRequest(request: InsertStudentRequest): Promise<StudentRequest>;
   getUserRequests(userId: string): Promise<StudentRequest[]>;
@@ -483,6 +491,49 @@ export class DatabaseStorage implements IStorage {
       .from(users)
       .where(eq(users.role, "student"))
       .orderBy(desc(users.createdAt));
+  }
+
+  // Admin Statistics
+  async getAdminStatistics(): Promise<{
+    totalChallenges: number;
+    totalTasks: number;
+    activeStudents: number;
+    totalCertifications: number;
+  }> {
+    // Count total challenges
+    const [challengesResult] = await db
+      .select({ count: count() })
+      .from(challenges);
+    const totalChallenges = challengesResult?.count || 0;
+
+    // Count total tasks
+    const [tasksResult] = await db
+      .select({ count: count() })
+      .from(tasks);
+    const totalTasks = tasksResult?.count || 0;
+
+    // Count active students (students with progress/activity)
+    // Get unique student IDs who have progress
+    const distinctStudents = await db
+      .selectDistinct({ userId: userProgress.userId })
+      .from(userProgress)
+      .innerJoin(users, eq(userProgress.userId, users.id))
+      .where(eq(users.role, "student"));
+    
+    const activeStudents = distinctStudents.length;
+
+    // Count total certifications
+    const [certificationsResult] = await db
+      .select({ count: count() })
+      .from(certifications);
+    const totalCertifications = certificationsResult?.count || 0;
+
+    return {
+      totalChallenges,
+      totalTasks,
+      activeStudents,
+      totalCertifications,
+    };
   }
 
   // Student Requests

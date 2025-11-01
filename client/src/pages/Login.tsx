@@ -8,7 +8,6 @@ import { useToast } from "@/hooks/use-toast";
 import { signInWithGoogle, signInWithEmail } from "@/lib/firebase";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
-import { Footer } from "@/components/Footer";
 import { BookOpen, Shield } from "lucide-react";
 
 export default function Login() {
@@ -253,7 +252,6 @@ export default function Login() {
           )}
         </CardFooter>
       </Card>
-      <Footer />
     </div>
   );
 }
